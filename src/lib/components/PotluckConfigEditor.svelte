@@ -40,7 +40,7 @@
 
   <label class="form-label">
     <span>We're providing</span>
-    <input class="input-field" maxlength="200" bind:value={providing} placeholder="Turkey, mains, and mac and cheese" />
+    <input class="input-field" maxlength="200" bind:value={providing} placeholder="Pulled chicken, pulled pork, and mac and cheese" />
     <small class="text-sm text-gray-600">Shown at the top so guests know what's covered</small>
   </label>
 

@@ -38,7 +38,7 @@ export type PotluckView = {
 const ideas = (list: string) => list.split(", ");
 
 export const FRIENDSGIVING_POTLUCK: PotluckConfig = {
-  providing: "Turkey, mains, and mac and cheese",
+  providing: "Pulled chicken, pulled pork, and mac and cheese",
   // With four categories, three always-offered would leave only one that can close.
   minOptions: 2,
   categories: [
@@ -47,7 +47,7 @@ export const FRIENDSGIVING_POTLUCK: PotluckConfig = {
       label: "Sides",
       ratio: 50,
       ideas: ideas(
-        "mashed or parmesan potatoes, hash-brown casserole, stuffing, green bean casserole, buttered corn, sweet potato casserole, rolls, salad, roasted veggies, cranberry sauce",
+        "mashed or parmesan potatoes, hash-brown casserole, stuffing, buttered corn, sweet potato casserole, rolls, salad, roasted veggies, cranberry sauce",
       ),
       forceOpen: false,
     },

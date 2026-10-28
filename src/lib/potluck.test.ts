@@ -155,10 +155,14 @@ describe("unclaimedIdeas", () => {
     expect(left).toHaveLength(desserts.ideas.length - 1);
   });
 
-  it("leaves mac and cheese out of the sides ideas because the hosts bring it", () => {
-    const sides = FRIENDSGIVING_CATEGORIES.find((c) => c.id === "sides")!;
-    expect(sides.ideas).not.toContain("mac and cheese");
-    expect(FRIENDSGIVING_POTLUCK.providing).toBe("Turkey, mains, and mac and cheese");
+  it("never suggests a dish the hosts have provided at past Friendsgivings", () => {
+    // 2024 and 2025 invites: pulled chicken and pork, mac and cheese, green beans.
+    const hostDishes = ["pulled chicken", "pulled pork", "mac and cheese", "green bean"];
+    const suggested = FRIENDSGIVING_CATEGORIES.flatMap((c) => c.ideas.map((i) => i.toLowerCase()));
+    for (const dish of hostDishes) {
+      expect(suggested.filter((idea) => idea.includes(dish))).toEqual([]);
+    }
+    expect(FRIENDSGIVING_POTLUCK.providing).toBe("Pulled chicken, pulled pork, and mac and cheese");
   });
 });
 
