@@ -4,6 +4,8 @@
   import { page } from '$app/stores';
   import { enhance } from '$app/forms';
   import AddressInput from '$lib/components/AddressInput.svelte';
+  import PotluckConfigEditor from '$lib/components/PotluckConfigEditor.svelte';
+  import { FRIENDSGIVING_POTLUCK, parsePotluckAnswer, standings, type PotluckView } from '$lib/potluck';
   import { COMMON_TIMEZONES, formatDateTimeForInput } from '$lib/utils/timezones';
 
   let { data, form } = $props<{ data: PageData; form: ActionData | null }>();
@@ -52,6 +54,8 @@
           return 'Question removed';
         case 'deleteRsvp':
           return 'RSVP removed';
+        case 'setPotluckOverride':
+          return 'Category override saved';
         default:
           return null;
       }
@@ -71,6 +75,21 @@
   const manageNotAttendingRsvps = $derived(rsvpsList.filter((r: typeof rsvpsList[number]) => r.status === 'not_attending'));
   const manageAttendingGuests = $derived(manageAttendingRsvps.reduce((sum: number, r: typeof rsvpsList[number]) => sum + r.guestCount, 0));
   const manageMaybeGuests = $derived(manageMaybeRsvps.reduce((sum: number, r: typeof rsvpsList[number]) => sum + r.guestCount, 0));
+
+  const statusText = {
+    open: 'Open',
+    forced: 'Forced open',
+    minimum: 'Open (keeps minimum choices)',
+    closed: 'Has enough',
+  } as const;
+
+  function describeAnswer(questionId: string, value: string) {
+    const answer = parsePotluckAnswer(value);
+    const view: PotluckView | null | undefined = questions.find((q: { id: string }) => q.id === questionId)?.potluck;
+    if (!answer || !view) return value;
+    const label = view.config.categories.find((c) => c.id === answer.category)?.label ?? answer.category;
+    return `${label}: ${answer.dish}`;
+  }
 
   let locationValue = $state(event.location ?? '');
   let questionType = $state<string>('text');
@@ -404,7 +423,7 @@
                   <div class="flex items-center gap-2 mb-2">
                     <h3 class="text-lg font-bold text-dark-800">{question.label}</h3>
                     <span class="px-2 py-1 text-xs font-semibold rounded-lg capitalize {question.type === 'text' ? 'bg-blue-100 text-blue-700' : question.type === 'multiple_choice' ? 'bg-purple-100 text-purple-700' : question.type === 'checkbox' ? 'bg-green-100 text-green-700' : question.type === 'spotify_playlist' ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}">
-                      {question.type === 'spotify_playlist' ? '🎵 Spotify Song' : question.type.replace('_', ' ')}
+                      {question.type === 'spotify_playlist' ? '🎵 Spotify Song' : question.type === 'potluck' ? 'Dish signup' : question.type.replace('_', ' ')}
                     </span>
                   </div>
                   {#if question.quantity}
@@ -470,6 +489,9 @@
                   </label>
                 {/if}
 
+                {#if question.type === 'potluck' && question.potluck}
+                  <PotluckConfigEditor initial={question.potluck.config} errors={slotErrors[question.id]?.potluckConfig ?? []} />
+                {:else}
                 <label class="form-label">
                   <span>Open slots (optional)</span>
                   <input class="input-field" name="quantity" inputmode="numeric" placeholder="Unlimited" value={question.quantity ?? ''} />
@@ -478,6 +500,7 @@
                     <small class="text-red-600 text-sm">{slotErrors[question.id].quantity[0]}</small>
                   {/if}
                 </label>
+                {/if}
 
                 <label class="form-label">
                   <span>Description</span>
@@ -550,6 +573,45 @@
                 {/if}
                 <button class="btn-primary" type="submit">Update question</button>
               </form>
+
+              {#if question.type === 'potluck' && question.potluck}
+                {@const view = question.potluck}
+                {@const total = view.taken.length}
+                <div class="mt-6 pt-4 border-t border-gray-200">
+                  <h4 class="font-bold text-dark-800 mb-1">Current mix</h4>
+                  <p class="text-sm text-gray-600 mb-3">{total} {total === 1 ? 'dish' : 'dishes'} signed up. Force a category open to accept it past its share.</p>
+                  <ul class="space-y-2">
+                    {#each standings(view.config, view.counts) as s (s.category.id)}
+                      <li class="flex flex-wrap items-center gap-x-3 gap-y-1 border border-primary-700/10 rounded-lg px-3 py-2">
+                        <span class="font-semibold text-dark-900 min-w-[7rem]">{s.category.label}</span>
+                        <span class="text-sm text-gray-700 tabular-nums">{s.count} · {total ? Math.round((s.count / total) * 100) : 0}% of {Math.round(s.share * 100)}%</span>
+                        <span class="text-xs font-semibold px-2 py-0.5 rounded-full {s.reason === 'closed' ? 'bg-gray-100 text-gray-700' : s.reason === 'forced' ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}">{statusText[s.reason]}</span>
+                        <form
+                          method="POST"
+                          action="?/setPotluckOverride"
+                          class="ml-auto"
+                          use:enhance={() => {
+                            return async ({ result, update }) => {
+                              if (result.type === 'success' && result.data?.potluck) {
+                                const next = result.data.potluck as typeof view;
+                                questions = questions.map((q: { id: string }) => (q.id === question.id ? { ...q, potluck: next } : q));
+                              }
+                              await update({ reset: false, invalidateAll: false });
+                            };
+                          }}
+                        >
+                          <input type="hidden" name="questionId" value={question.id} />
+                          <input type="hidden" name="categoryId" value={s.category.id} />
+                          <input type="hidden" name="forceOpen" value={s.category.forceOpen ? 'false' : 'true'} />
+                          <button type="submit" class="btn-secondary text-sm py-1 px-3">
+                            {s.category.forceOpen ? 'Remove override' : 'Force open'}
+                          </button>
+                        </form>
+                      </li>
+                    {/each}
+                  </ul>
+                </div>
+              {/if}
             </article>
           {/key}
         {/each}
@@ -695,6 +757,8 @@
                           {:else}
                             <div class="text-sm text-dark-600 italic">No songs selected</div>
                           {/if}
+                        {:else if response.questionType === 'potluck'}
+                          <div class="text-sm text-dark-800 font-medium">{describeAnswer(response.questionId, response.value)}</div>
                         {:else}
                           <div class="text-sm text-dark-800 font-medium">{response.value}</div>
                         {/if}
@@ -807,6 +871,7 @@
             <option value="checkbox">Checkbox</option>
             <option value="slots">Slots</option>
             <option value="spotify_playlist">Spotify Playlist Song</option>
+            <option value="potluck">Dish signup (balanced mix)</option>
           </select>
         </label>
 
@@ -832,7 +897,11 @@
           </label>
         {/if}
 
-        {#if questionType !== 'spotify_playlist'}
+        {#if questionType === 'potluck'}
+          <PotluckConfigEditor initial={FRIENDSGIVING_POTLUCK} errors={addSlotErrors.potluckConfig ?? []} />
+        {/if}
+
+        {#if questionType !== 'spotify_playlist' && questionType !== 'potluck'}
         <label class="form-label">
           <span>Open slots</span>
           <input class="input-field" type="number" name="quantity" min="0" value="0" />
@@ -896,7 +965,7 @@
 
         <label class="flex flex-col gap-2 cursor-pointer">
           <div class="flex items-center gap-3">
-            <input type="checkbox" name="isPublic" class="w-5 h-5 rounded border-primary-700/25 text-primary-600 focus:ring-primary-500" />
+            <input type="checkbox" name="isPublic" checked={questionType === 'potluck'} class="w-5 h-5 rounded border-primary-700/25 text-primary-600 focus:ring-primary-500" />
             <span class="font-medium text-dark-900">Show responses publicly</span>
           </div>
           <small class="text-sm text-gray-600 ml-8">When enabled, all attendees can see everyone's responses to this question</small>

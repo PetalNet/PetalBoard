@@ -1,5 +1,5 @@
 import { sveltekit } from "@sveltejs/kit/vite";
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import basicSsl from "@vitejs/plugin-basic-ssl";
 
 export default defineConfig({
@@ -7,5 +7,8 @@ export default defineConfig({
   server: {
     host: "0.0.0.0", // Bind to all interfaces to allow IP address access
     port: 5173,
+  },
+  test: {
+    include: ["src/**/*.test.ts"],
   },
 });

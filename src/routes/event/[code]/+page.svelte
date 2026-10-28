@@ -7,6 +7,9 @@
   import { loadGoogleMaps } from '$lib/utils/googleMaps';
   import { env } from '$env/dynamic/public';
   import SpotifySongSelector from '$lib/components/SpotifySongSelector.svelte';
+  import PotluckField from '$lib/components/PotluckField.svelte';
+  import PotluckBoard from '$lib/components/PotluckBoard.svelte';
+  import { parsePotluckAnswer, type PotluckView } from '$lib/potluck';
 
   const { data, form } = $props<{ data: PageData; form: ActionData | null }>();
   const event = data.event;
@@ -260,6 +263,15 @@ const backgroundOverlayDark = event.backgroundImage
   let totalGuests = $state(data.event.totalGuests);
   let questionResponseCounts = $state<Record<string, number>>(
     Object.fromEntries(event.questions.map((q: any) => [q.id, q.responseCount]))
+  );
+
+  const potluckViews = $derived<Record<string, PotluckView>>(
+    Object.fromEntries(
+      data.event.questions.flatMap((q: any) => (q.potluck ? [[q.id, q.potluck]] : [])),
+    ),
+  );
+  const potluckRejection = $derived<{ questionId: string; offered: string[] } | null>(
+    (form as any)?.potluck ?? null,
   );
 
   const errors = $derived<Record<string, string[]>>((form?.errors ?? {}) as Record<string, string[]>);
@@ -1221,6 +1233,10 @@ const backgroundOverlayDark = event.backgroundImage
     </section>
   {/if}
 
+  {#each event.questions.filter((q: any) => potluckViews[q.id]) as question (question.id)}
+    <PotluckBoard label={question.label} view={potluckViews[question.id]} />
+  {/each}
+
   <!-- Public Question Responses (All Types - In Creation Order) -->
   {#if event.questions.some((q: any) => q.isPublic && q.publicResponses && q.publicResponses.length > 0)}
     {@const publicQuestions = event.questions.filter((q: any) => q.isPublic && q.publicResponses && q.publicResponses.length > 0)}
@@ -1743,6 +1759,18 @@ const backgroundOverlayDark = event.backgroundImage
                       </label>
                     {/each}
                   </fieldset>
+                {:else if question.type === 'potluck' && potluckViews[question.id]}
+                  <PotluckField
+                    questionId={question.id}
+                    label={question.label}
+                    description={question.description}
+                    required={question.required}
+                    view={potluckViews[question.id]}
+                    value={responses[question.id] ?? ''}
+                    ownAnswer={parsePotluckAnswer(editingRsvp.responses?.[question.id])}
+                    offeredOverride={potluckRejection && potluckRejection.questionId === question.id ? potluckRejection.offered : null}
+                    onchange={(raw) => (responses[question.id] = raw)}
+                  />
                 {:else if question.type === 'slots'}
                   <label class="form-label">
                     <span>{question.label}{question.required ? ' *' : ''}</span>
@@ -2075,6 +2103,17 @@ const backgroundOverlayDark = event.backgroundImage
                       </label>
                     {/each}
                   </fieldset>
+                {:else if question.type === 'potluck' && potluckViews[question.id]}
+                  <PotluckField
+                    questionId={question.id}
+                    label={question.label}
+                    description={question.description}
+                    required={question.required}
+                    view={potluckViews[question.id]}
+                    value={responses[question.id] ?? ''}
+                    offeredOverride={potluckRejection && potluckRejection.questionId === question.id ? potluckRejection.offered : null}
+                    onchange={(raw) => (responses[question.id] = raw)}
+                  />
                 {:else if question.type === 'slots'}
                   <label class="form-label" class:disabled={isFull}>
                     <span>

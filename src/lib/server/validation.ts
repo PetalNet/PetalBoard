@@ -74,6 +74,7 @@ export const questionSchema = z.object({
     "checkbox",
     "slots",
     "spotify_playlist",
+    "potluck",
   ]),
   label: z.string().trim().min(2, "Question text is required"),
   description: optionalText(z.string().max(2000)),
